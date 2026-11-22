@@ -2,7 +2,7 @@
 # 启动/重启上游 wb2api（幂等）。native 模式下 manager 保存配置后会调用本脚本。
 # PID 文件保证重复调用不会起第二个进程抢 7863 端口。
 set -u
-CFG="${WB_UPSTREAM_CONFIG:-/opt/workbuddy/workbuddy2api/config.json}"
+CFG="${WB_UPSTREAM_CONFIG:-/opt/workbuddy2api/config.json}"
 WORKDIR="$(dirname "$CFG")"
 LOGDIR="${WORKDIR}/data"
 PIDFILE="/tmp/wb2api.pid"
