@@ -12,8 +12,9 @@ if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; the
     exit 0
 fi
 
-cd "$WORKDIR"
-# stdout → server.out.log（对话日志，供账号回填），stderr → server.err.log（业务日志）
-nohup /app/wb2api -config "$CFG" >> "${LOGDIR}/server.out.log" 2>> "${LOGDIR}/server.err.log" &
+cd /app
+# stdout 写对话日志（供账号回填）；stderr 不重定向，直接进容器 stderr 便于 Altare 日志查看。
+# 工作目录必须是 /app：上游镜像 entrypoint 就在 /app，相对路径按它解析。
+/app/wb2api -config "$CFG" >> "${LOGDIR}/server.out.log" &
 echo $! > "$PIDFILE"
 exit 0
