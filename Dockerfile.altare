@@ -1,0 +1,35 @@
+# 单容器镜像：WorkBuddy Manager(管理面板+反代) + 上游 wb2api
+# 供 Altare Docker App 部署。两个进程共享同一个数据目录与文件系统，
+# 从而保全扫码加号 / 配置保存 / reload / 定时任务等所有依赖共享文件的特性。
+#
+# 从两个官方 amd64 镜像合成，不重新编译任何东西：
+#   - manager 镜像：Python 3.12-alpine + uvicorn + 静态前端 + 原 entrypoint
+#   - 上游镜像：单个静态 Go 二进制 /app/wb2api
+
+ARG MANAGER_IMAGE=ghcr.io/ithtelab/workbuddy-manager:latest
+ARG UPSTREAM_IMAGE=ghcr.io/ithtelab/workbuddy2api:latest
+
+# 阶段1：取上游二进制
+FROM ${UPSTREAM_IMAGE} AS upstream
+
+# 阶段2：以 manager 官方镜像为底
+FROM ${MANAGER_IMAGE}
+
+USER root
+
+# wb2api 是 amd64 静态 Go 二进制，与 manager 的 python:3.12-alpine(amd64) 兼容
+COPY --from=upstream /app/wb2api /app/wb2api
+
+# 装 tzdata：项目按日统计/每日限额取本地时区，Alpine 缺 tzdata 会静默退回 UTC
+RUN apk add --no-cache tzdata
+
+# 单容器启动脚本（native 模式下由启停脚本真正重启 wb2api）
+COPY deploy/altare/start-all.sh /app/deploy/start-all.sh
+COPY deploy/altare/start-wb2api.sh /app/deploy/start-wb2api.sh
+COPY deploy/altare/stop-wb2api.sh /app/deploy/stop-wb2api.sh
+RUN chmod +x /app/wb2api /app/deploy/start-all.sh /app/deploy/start-wb2api.sh /app/deploy/stop-wb2api.sh \
+    && sed -i 's/\r$//' /app/deploy/start-all.sh /app/deploy/start-wb2api.sh /app/deploy/stop-wb2api.sh
+
+# 保留官方 ENTRYPOINT（uid/gid 对齐 + 首启生成上游 config.json），只替换 CMD。
+# entrypoint 最后会 `exec su-exec "$PUID:$PGID" "$@"`，于是 start-all.sh 以业务用户运行。
+CMD ["/app/deploy/start-all.sh"]
